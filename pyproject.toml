@@ -1,0 +1,55 @@
+[project]
+name = "era"
+version = "0.0.1"
+authors = [
+    {name="Lintang Sutawika", email="lsutawik@andrew.cmu.edu"}
+]
+description = ""
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.13"
+license = { "text" = "MIT" }
+dependencies = [
+    "rllm[verl] @ git+https://github.com/rllm-org/rllm.git",
+    "litellm",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src"]
+
+[tool.uv]
+override-dependencies = [
+    "flash-attn",
+    "transformers==4.57.0",
+]
+extra-build-variables = { flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" } }
+
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch"]
+
+[tool.uv.sources]
+flash-attn = {url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp313-cp313-linux_x86_64.whl"}
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
