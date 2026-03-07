@@ -2,7 +2,6 @@ import os
 import re
 
 from rllm.rewards.reward_types import RewardOutput
-from rllm.rewards.reward_fn import math_reward_fn
 
 import litellm
 
@@ -11,12 +10,13 @@ kwargs = {
     "api_key": os.environ.get("LLM_API_KEY", "fake_api_key_for_testing"),
 }
 
-def adversarial_reward_fn(task_info: dict, action: str) -> RewardOutput:
+def adversarial_reward_fn(task_reward_fn: callable, task_info: dict, action: str) -> RewardOutput:
     """
     A reward function for math tasks that implements the RewardFunction protocol.
 
     Args:
-        task: The task dictionary containing data_source, ground_truth and other metadata
+        task_reward_fn: The reward function specific to the task
+        task_info: A dictionary containing information about the task
         action: The agent's response/solution
 
     Returns:
@@ -31,19 +31,17 @@ def adversarial_reward_fn(task_info: dict, action: str) -> RewardOutput:
     if paraphrased_question is None:
         return RewardOutput(reward=0.0, metadata={"error": "Invalid action format"})
 
-    messages = [
-        {"role": "system", "content": "Reason step by step and put your final answer within \\boxed{}."},
-        {"role": "user", "content": paraphrased_question},
-        ]
+    messages = task_info["target_prompts"]
+    messages[-1]["content"] = messages[-1]["content"].replace("__PARAPHRASED_QUESTION__", paraphrased_question)
     
     try:
         victim_response = litellm.completion(
-            model="litellm_proxy/azure_ai/gpt-oss-120b",
+            model=task_info["victim_model"],
             messages=messages,
             **kwargs
         ).choices[0].message.content.strip()
         reference_response = litellm.completion(
-            model="litellm_proxy/azure_ai/Llama-3.3-70B-Instruct",
+            model=task_info["reference_model"],
             messages=messages,
             **kwargs
         ).choices[0].message.content.strip()
@@ -52,8 +50,8 @@ def adversarial_reward_fn(task_info: dict, action: str) -> RewardOutput:
         victim_response = None
         reference_response = None
 
-    victim_reward = math_reward_fn(task_info, victim_response)
-    reference_reward = math_reward_fn(task_info, reference_response)
+    victim_reward = task_reward_fn(task_info, victim_response)
+    reference_reward = task_reward_fn(task_info, reference_response)
 
     if victim_reward.reward == 0 and reference_reward.reward == 1:
         reward = 1.0
@@ -65,5 +63,7 @@ def adversarial_reward_fn(task_info: dict, action: str) -> RewardOutput:
         "victim_response": victim_response,
         "reference_response": reference_response,
         "victim_reward": victim_reward.reward,
+        "victim_reward_metadata": victim_reward.metadata,
         "reference_reward": reference_reward.reward,
+        "reference_reward_metadata": reference_reward.metadata,
     })
