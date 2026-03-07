@@ -4,13 +4,13 @@ from tqdm import tqdm
 
 from vllm import SamplingParams, LLM
 
-from src.prepare_gsm8k_data import prepare_gsm8k_data
 from src.adversarial_reward import adversarial_reward_fn
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name_or_path", type=str, required=True, help="The model name or path to load the model from.")
+    parser.add_argument("--task_name", type=str, default="gsm8k", help="The name of the task to evaluate on (e.g., gsm8k, mbpp).")
     parser.add_argument("--temperature", type=float, default=0.7, help="The temperature to use for sampling.")
     parser.add_argument("--top_k", type=int, default=50, help="The top-k value to use for sampling.")
     parser.add_argument("--top_p", type=float, default=0.95, help="The top-p value to use for sampling.")
@@ -19,8 +19,18 @@ if __name__ == "__main__":
     parser.add_argument("--num_samples", type=int, default=None, help="Number of samples to evaluate (None for all).")
     args = parser.parse_args()
 
-    # Prepare datasets
-    train_dataset, test_dataset = prepare_gsm8k_data()
+    if args.task_name == "gsm8k":
+        from src.tasks.gsm8k import prepare_gsm8k
+        train_dataset, test_dataset = prepare_gsm8k()
+    elif args.task_name == "mbpp":
+        from src.tasks.mbpp import prepare_mbpp
+        train_dataset, test_dataset = prepare_mbpp()
+
+    victim_model = "litellm_proxy/azure_ai/gpt-oss-120b"
+    reference_model = "litellm_proxy/azure_ai/Llama-3.3-70B-Instruct"
+
+    train_dataset = train_dataset.map(lambda x: {"victim_model": victim_model, "reference_model": reference_model})
+    test_dataset = test_dataset.map(lambda x: {"victim_model": victim_model, "reference_model": reference_model})
 
     # Initialize vLLM
     llm = LLM(model=args.model_name_or_path)
