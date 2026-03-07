@@ -12,7 +12,13 @@ def extract_solution(solution_str):
     final_solution = final_solution.split("#### ")[1].replace(",", "")
     return final_solution
 
-command = "Your goal is to rewrite the provided problem in a way that makes the original problem more difficult, without changing the correct answer of the problem. Use <problem> and </problem> tags to enclose the modified problem. Do not attempt to solve the problem directly."
+ATTACK_SYS_PROMPT = (
+    "Your goal is to rewrite the provided problem in a way "
+    "that makes the original problem more difficult, "
+    "without changing the correct answer of the problem. "
+    "Use <problem> and </problem> tags to enclose the modified problem. "
+    "Do not attempt to solve the problem directly."
+)
 
 def prepare_gsm8k_data():
     gsm8k_dataset = load_dataset("openai/gsm8k", "main")
@@ -21,9 +27,13 @@ def prepare_gsm8k_data():
 
     def preprocess_fn(example, idx):
         return {
-            "question": command + example['question'],
+            "question": ATTACK_SYS_PROMPT + example['question'],
             "ground_truth": extract_solution(example["answer"]),
             "data_source": "gsm8k",
+            "target_prompts": [
+                {"role": "system", "content": "Reason step by step and put your final answer within \\boxed{}."},
+                {"role": "user", "content": "__PARAPHRASED_QUESTION__"},
+            ],
         }
 
     train_dataset = train_dataset.map(preprocess_fn, with_indices=True)
