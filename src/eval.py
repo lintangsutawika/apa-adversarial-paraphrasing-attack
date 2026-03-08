@@ -1,6 +1,7 @@
 import json
 import os
 from tqdm import tqdm
+from functools import partial
 
 from vllm import SamplingParams, LLM
 
@@ -20,17 +21,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.task_name == "gsm8k":
-        from src.tasks.gsm8k import prepare_gsm8k
-        train_dataset, test_dataset = prepare_gsm8k()
+        print("Using GSM8K task")
+        from src.tasks.gsm8k import prepare_gsm8k_data
+        from rllm.rewards.reward_fn import math_reward_fn
+
+        reward_fn = partial(adversarial_reward_fn, task_reward_fn=math_reward_fn)
+        train_dataset, test_dataset = prepare_gsm8k_data()
     elif args.task_name == "mbpp":
-        from src.tasks.mbpp import prepare_mbpp
-        train_dataset, test_dataset = prepare_mbpp()
+        print("Using MBPP task")
+        from src.tasks.mbpp import prepare_mbpp_data, mbpp_reward_fn
 
-    victim_model = "litellm_proxy/azure_ai/gpt-oss-120b"
-    reference_model = "litellm_proxy/azure_ai/Llama-3.3-70B-Instruct"
-
-    train_dataset = train_dataset.map(lambda x: {"victim_model": victim_model, "reference_model": reference_model})
-    test_dataset = test_dataset.map(lambda x: {"victim_model": victim_model, "reference_model": reference_model})
+        reward_fn = partial(adversarial_reward_fn, task_reward_fn=mbpp_reward_fn)
+        train_dataset, test_dataset = prepare_mbpp_data()
 
     # Initialize vLLM
     llm = LLM(model=args.model_name_or_path)
@@ -58,21 +60,15 @@ if __name__ == "__main__":
     total_reward = 0.0
     success_count = 0
 
-    for i, (sample, output) in enumerate(tqdm(zip(test_samples, outputs), total=len(test_samples), desc="Evaluating")):
+    for i, (task_info, output) in enumerate(tqdm(zip(test_samples, outputs), total=len(test_samples), desc="Evaluating")):
         generated_text = output.outputs[0].text
 
-        task_info = {
-            "data_source": sample["data_source"],
-            "ground_truth": sample["ground_truth"],
-        }
-
-        reward_output = adversarial_reward_fn(task_info, generated_text)
+        reward_output = reward_fn(task_info=task_info, action=generated_text)
 
         result = {
             "idx": i,
-            "original_question": sample["question"],
+            "original_question": task_info["question"],
             "generated_response": generated_text,
-            "ground_truth": sample["ground_truth"],
             "reward": reward_output.reward,
             "metadata": reward_output.metadata,
         }
