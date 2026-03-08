@@ -33,7 +33,10 @@ def adversarial_reward_fn(task_reward_fn: callable, task_info: dict, action: str
 
     messages = task_info["target_prompts"]
     messages[-1]["content"] = messages[-1]["content"].replace("__PARAPHRASED_QUESTION__", paraphrased_question)
-    
+
+    task_info["victim_model"] = "litellm_proxy/azure_ai/Llama-3.3-70B-Instruct"
+    task_info["reference_model"] = "litellm_proxy/azure_ai/gpt-oss-120b"
+
     try:
         victim_response = litellm.completion(
             model=task_info["victim_model"],
@@ -53,7 +56,7 @@ def adversarial_reward_fn(task_reward_fn: callable, task_info: dict, action: str
     victim_reward = task_reward_fn(task_info, victim_response)
     reference_reward = task_reward_fn(task_info, reference_response)
 
-    if victim_reward.reward == 0 and reference_reward.reward == 1:
+    if victim_reward.reward < 1 and reference_reward.reward == 1:
         reward = 1.0
     else:
         reward = 0.0
