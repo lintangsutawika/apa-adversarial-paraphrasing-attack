@@ -27,7 +27,10 @@ def prepare_gsm8k_data():
 
     def preprocess_fn(example, idx):
         return {
-            "question": ATTACK_SYS_PROMPT + example['question'],
+            "messages": [
+                {"role": "system", "content": ATTACK_SYS_PROMPT},
+                {"role": "user", "content": example['question']}
+                ],
             "ground_truth": extract_solution(example["answer"]),
             "data_source": "gsm8k",
             "target_prompts": [

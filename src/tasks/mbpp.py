@@ -10,10 +10,18 @@ from src.tasks.code_eval import check_correctness, compute_code_eval
 stop_words=["\nclass", "\nassert", '\n"""', "\nprint", "\nif", "\n<|/", "\n```"]
 start_words=["```python\n", "```\n"]
 
+# ATTACK_SYS_PROMPT = (
+#     "Rewrite the given programming problem. "
+#     "Do not write any code, your task is to only output a rewritten version of "
+#     "the problem description inside <problem></problem>."
+# )
+
 ATTACK_SYS_PROMPT = (
-    "Rewrite the given programming problem. "
-    "Do not write any code, your task is to only output a rewritten version of "
-    "the problem description inside <problem></problem>."
+    "Your goal is to rewrite the provided problem in a way "
+    "that makes the original problem more difficult, "
+    "without changing the correct answer of the problem. "
+    "Use <problem> and </problem> tags to enclose the modified problem. "
+    "Do not attempt to solve the problem directly."
 )
 
 def prepare_mbpp_data():
@@ -29,10 +37,13 @@ def prepare_mbpp_data():
             test_cases = example["test_setup_code"] + "\n\n" + test_cases
         data = {
             "data_source": "mbpp",
-            "question": ATTACK_SYS_PROMPT + "\n\nProblem: " + text,
+            "messages": [
+                {"role": "system", "content": ATTACK_SYS_PROMPT},
+                {"role": "user", "content": example['question']}
+                ],
             "target_prompts": [
                 {"role": "system", "content": "Solve the following programming problem. Write code that can pass the provided test cases."},
-                {"role": "user", "content": "__PARAPHRASED_QUESTION__" + "\n\n" + test_cases},
+                {"role": "user", "content": "__PARAPHRASED_QUESTION__"},
             ],
             "ability": "coding",
             "reward_model": {"style": "rule", "ground_truth": None},
