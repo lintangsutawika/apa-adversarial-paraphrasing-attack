@@ -9,6 +9,7 @@ from rllm.environments.base.single_turn_env import SingleTurnEnvironment
 from rllm.trainer.agent_trainer import AgentTrainer
 
 from src.adversarial_reward import adversarial_reward_fn
+from src.agent import AdversarialAgent
 
 @hydra.main(config_path="pkg://rllm.trainer.config", config_name="agent_ppo_trainer", version_base=None)
 def main(config):
@@ -33,7 +34,7 @@ def main(config):
         train_dataset, test_dataset = prepare_mbpp_data()
 
     trainer = AgentTrainer(
-        agent_class=MathAgent,
+        agent_class=AdversarialAgent,
         agent_args={},
         env_args={"reward_fn": reward_fn},
         env_class=SingleTurnEnvironment,
