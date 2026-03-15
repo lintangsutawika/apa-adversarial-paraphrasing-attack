@@ -8,6 +8,8 @@ export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export VLLM_ENGINE_ITERATION_TIMEOUT_S=100000000000
 
 MODEL_PATH=Qwen/Qwen3-8B
+WANDB_PROJECT=${WANDB_PROJECT:-apa}
+WANDB_RUN_NAME=${WANDB_RUN_NAME:-gsm8k-qwen3-8b}
 
 uv run --isolated src/train.py \
     algorithm.adv_estimator=grpo \
@@ -55,8 +57,8 @@ uv run --isolated src/train.py \
     rllm.mask_truncated_samples=False \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
-    trainer.project_name='apa' \
-    trainer.experiment_name='gsm8k-qwen3-8b' \
+    trainer.project_name="$WANDB_PROJECT" \
+    trainer.experiment_name="$WANDB_RUN_NAME" \
     trainer.val_before_train=False \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \

@@ -52,8 +52,8 @@ if __name__ == "__main__":
     print(f"Evaluating on {len(test_samples)} samples...")
 
     # Generate paraphrased questions
-    prompts = [sample["question"] for sample in test_samples]
-    outputs = llm.generate(prompts, sampling_params)
+    prompts = [sample["messages"] for sample in test_samples]
+    outputs = llm.chat(prompts, sampling_params)
 
     # Evaluate each generated paraphrase
     results = []
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
         result = {
             "idx": i,
-            "original_question": task_info["question"],
+            "original_question": task_info.get("question", task_info["messages"][-1]["content"]),
             "generated_response": generated_text,
             "reward": reward_output.reward,
             "metadata": reward_output.metadata,
@@ -111,4 +111,3 @@ if __name__ == "__main__":
         json.dump(summary, f, indent=2)
 
     print(f"\nResults saved to {output_file}")
-
