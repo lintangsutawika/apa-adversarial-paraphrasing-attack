@@ -8,6 +8,12 @@ export LLM_API_URL=...
 export LLM_API_KEY=...
 ```
 
+Training uses rLLM/verl's native W&B logging, so the standard training metrics and rewards are logged without adding a custom logger. You can override the run metadata with:
+```
+export WANDB_PROJECT=apa
+export WANDB_RUN_NAME=gsm8k-qwen3-8b
+```
+
 Or you can also change the models in `src/adversarial_reward.py`, I use gpt-oss-120b as the reference model and Llama-3.3-70B-Instruct as the victim model.
 
 To train

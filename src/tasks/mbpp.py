@@ -39,7 +39,7 @@ def prepare_mbpp_data():
             "data_source": "mbpp",
             "messages": [
                 {"role": "system", "content": ATTACK_SYS_PROMPT},
-                {"role": "user", "content": example['question']}
+                {"role": "user", "content": text}
                 ],
             "target_prompts": [
                 {"role": "system", "content": "Solve the following programming problem. Write code that can pass the provided test cases."},
