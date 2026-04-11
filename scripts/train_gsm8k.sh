@@ -17,7 +17,7 @@ uv run --isolated src/train.py \
     algorithm.use_kl_in_reward=False \
     data.train_batch_size=32 \
     data.val_batch_size=32 \
-    data.max_prompt_length=512 \
+    data.max_prompt_length=8192 \
     data.max_response_length=4024 \
     actor_rollout_ref.model.path=$MODEL_PATH \
     actor_rollout_ref.actor.optim.lr=5e-6 \

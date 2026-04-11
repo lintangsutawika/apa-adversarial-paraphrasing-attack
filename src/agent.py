@@ -13,10 +13,17 @@ class AdversarialAgent(BaseAgent):
         self.messages = []
 
     def update_from_env(self, observation: Any, reward: float, done: bool, info: dict, **kwargs):
+        if not isinstance(observation, dict):
+            return
 
-        assert "messages" in observation, "Observation must contain 'messages' key."
-        assert isinstance(observation["messages"], list), "'messages' in observation must be a list."
-        self.messages = observation["messages"]
+        messages = observation.get("messages")
+        # SingleTurnEnvironment returns {} after the terminal step. In that case we
+        # keep the existing conversation, which already includes the assistant reply.
+        if messages is None:
+            return
+        if not isinstance(messages, list):
+            raise TypeError("'messages' in observation must be a list.")
+        self.messages = copy.deepcopy(messages)
 
     def update_from_model(self, response: str, **kwargs) -> Action:
         """
