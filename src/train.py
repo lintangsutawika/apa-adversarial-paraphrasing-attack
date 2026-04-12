@@ -67,16 +67,29 @@ def _maybe_disable_verl_fsdp_sync_module_states() -> None:
     if getattr(fsdp_workers, "_apa_sync_patch_applied", False):
         return
 
-    original_fsdp = fsdp_workers.FSDP
+    original_build_model_optimizer = (
+        fsdp_workers.ActorRolloutRefWorker._build_model_optimizer
+    )
 
-    def _patched_fsdp(*args, **kwargs):
-        if kwargs.get("sync_module_states"):
-            if os.environ.get("RANK", "0") == "0":
-                print("APA patch: disabling FSDP sync_module_states during init")
-            kwargs["sync_module_states"] = False
-        return original_fsdp(*args, **kwargs)
+    def _patched_build_model_optimizer(self, *args, **kwargs):
+        original_fsdp = fsdp_workers.FSDP
 
-    fsdp_workers.FSDP = _patched_fsdp
+        def _patched_fsdp(*fsdp_args, **fsdp_kwargs):
+            if fsdp_kwargs.get("sync_module_states"):
+                if os.environ.get("RANK", "0") == "0":
+                    print("APA patch: disabling FSDP sync_module_states during init")
+                fsdp_kwargs["sync_module_states"] = False
+            return original_fsdp(*fsdp_args, **fsdp_kwargs)
+
+        fsdp_workers.FSDP = _patched_fsdp
+        try:
+            return original_build_model_optimizer(self, *args, **kwargs)
+        finally:
+            fsdp_workers.FSDP = original_fsdp
+
+    fsdp_workers.ActorRolloutRefWorker._build_model_optimizer = (
+        _patched_build_model_optimizer
+    )
     fsdp_workers._apa_sync_patch_applied = True
 
 
