@@ -47,11 +47,7 @@ def _patch_verl_fsdp_sync_module_states() -> None:
                             and max(module.weight.shape) >= 100000
                         ):
                             return False
-                        return auto_wrap_policy(
-                            module=module,
-                            recurse=recurse,
-                            nonwrapped_numel=nonwrapped_numel,
-                        )
+                        return auto_wrap_policy(module, recurse, nonwrapped_numel)
 
                     fsdp_kwargs["auto_wrap_policy"] = _patched_auto_wrap_policy
 
