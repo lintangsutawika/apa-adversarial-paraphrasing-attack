@@ -2,6 +2,8 @@
 
 set -x
 
+export PYTHONPATH="$(pwd)${PYTHONPATH:+:$PYTHONPATH}"
+
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:False"
 export VLLM_USE_V1=1
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1

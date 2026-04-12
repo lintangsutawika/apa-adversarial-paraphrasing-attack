@@ -39,4 +39,66 @@ def _patch_verl_fsdp_sync_module_states() -> None:
     fsdp_workers._apa_sync_patch_applied = True
 
 
+def _patch_verl_fsdp_wrap_policy() -> None:
+    if os.environ.get("APA_EXCLUDE_VOCAB_WRAP") != "1":
+        return
+
+    try:
+        import torch.nn as nn
+        import verl.workers.fsdp_workers as fsdp_workers
+        from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
+    except Exception:
+        return
+
+    if getattr(fsdp_workers, "_apa_wrap_patch_applied", False):
+        return
+
+    original_get_fsdp_wrap_policy = fsdp_workers.get_fsdp_wrap_policy
+    printed = {"done": False}
+
+    def _patched_get_fsdp_wrap_policy(module, config=None, is_lora=False):
+        if config is None:
+            return original_get_fsdp_wrap_policy(module, config=config, is_lora=is_lora)
+
+        if is_lora:
+            return original_get_fsdp_wrap_policy(module, config=config, is_lora=is_lora)
+
+        def _get_attr(attr_name, default_value=None):
+            if hasattr(config, "get"):
+                return config.get(attr_name, default_value)
+            return getattr(config, attr_name, default_value)
+
+        min_num_params = _get_attr("min_num_params", 0)
+        if min_num_params <= 0:
+            return original_get_fsdp_wrap_policy(module, config=config, is_lora=is_lora)
+
+        if not printed["done"] and os.environ.get("RANK", "0") == "0":
+            print(
+                "APA patch: excluding giant vocab modules from size-based FSDP auto-wrap"
+            )
+            printed["done"] = True
+
+        def _policy_fn(m, recurse, nonwrapped_numel):
+            if isinstance(m, nn.Embedding):
+                return False
+            if (
+                isinstance(m, nn.Linear)
+                and getattr(m, "weight", None) is not None
+                and max(m.weight.shape) >= 100000
+            ):
+                return False
+            return size_based_auto_wrap_policy(
+                module=m,
+                recurse=recurse,
+                nonwrapped_numel=nonwrapped_numel,
+                min_num_params=min_num_params,
+            )
+
+        return _policy_fn
+
+    fsdp_workers.get_fsdp_wrap_policy = _patched_get_fsdp_wrap_policy
+    fsdp_workers._apa_wrap_patch_applied = True
+
+
 _patch_verl_fsdp_sync_module_states()
+_patch_verl_fsdp_wrap_policy()
