@@ -19,12 +19,42 @@ def _patch_verl_fsdp_sync_module_states() -> None:
 
     def _patched_build_model_optimizer(self, *args, **kwargs):
         original_fsdp = fsdp_workers.FSDP
+        printed = {"done": False}
 
         def _patched_fsdp(*fsdp_args, **fsdp_kwargs):
             if fsdp_kwargs.get("sync_module_states"):
                 if os.environ.get("RANK", "0") == "0":
                     print("APA patch: disabling FSDP sync_module_states during init")
                 fsdp_kwargs["sync_module_states"] = False
+
+            if os.environ.get("APA_EXCLUDE_VOCAB_WRAP") == "1":
+                auto_wrap_policy = fsdp_kwargs.get("auto_wrap_policy")
+                if auto_wrap_policy is not None:
+                    import torch.nn as nn
+
+                    if not printed["done"] and os.environ.get("RANK", "0") == "0":
+                        print(
+                            "APA patch: excluding giant vocab modules from FSDP auto-wrap"
+                        )
+                        printed["done"] = True
+
+                    def _patched_auto_wrap_policy(module, recurse, nonwrapped_numel):
+                        if isinstance(module, nn.Embedding):
+                            return False
+                        if (
+                            isinstance(module, nn.Linear)
+                            and getattr(module, "weight", None) is not None
+                            and max(module.weight.shape) >= 100000
+                        ):
+                            return False
+                        return auto_wrap_policy(
+                            module=module,
+                            recurse=recurse,
+                            nonwrapped_numel=nonwrapped_numel,
+                        )
+
+                    fsdp_kwargs["auto_wrap_policy"] = _patched_auto_wrap_policy
+
             return original_fsdp(*fsdp_args, **fsdp_kwargs)
 
         fsdp_workers.FSDP = _patched_fsdp
