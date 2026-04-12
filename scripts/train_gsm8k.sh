@@ -28,6 +28,14 @@ REF_STRATEGY=${REF_STRATEGY:-$ACTOR_STRATEGY}
 ACTOR_MODEL_DTYPE=${ACTOR_MODEL_DTYPE:-fp32}
 REF_MODEL_DTYPE=${REF_MODEL_DTYPE:-$ACTOR_MODEL_DTYPE}
 
+extra_args=()
+if [ -n "${ACTOR_WRAP_MIN_PARAMS:-}" ]; then
+    extra_args+=("actor_rollout_ref.actor.fsdp_config.wrap_policy.min_num_params=$ACTOR_WRAP_MIN_PARAMS")
+fi
+if [ -n "${REF_WRAP_MIN_PARAMS:-}" ]; then
+    extra_args+=("actor_rollout_ref.ref.fsdp_config.wrap_policy.min_num_params=$REF_WRAP_MIN_PARAMS")
+fi
+
 uv run --isolated src/train.py \
     algorithm.adv_estimator=grpo \
     algorithm.norm_adv_by_std_in_grpo=False \
@@ -87,4 +95,5 @@ uv run --isolated src/train.py \
     rllm.agent.max_steps=1 \
     rllm.stepwise_advantage.enable=False \
     trainer.total_epochs=10 \
+    "${extra_args[@]}" \
     "$@"
