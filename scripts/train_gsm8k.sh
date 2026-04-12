@@ -6,10 +6,16 @@ export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:False"
 export VLLM_USE_V1=1
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export VLLM_ENGINE_ITERATION_TIMEOUT_S=100000000000
+export TORCH_NCCL_TRACE_BUFFER_SIZE=${TORCH_NCCL_TRACE_BUFFER_SIZE:-20000}
+export TORCH_NCCL_DUMP_ON_TIMEOUT=${TORCH_NCCL_DUMP_ON_TIMEOUT:-1}
 
 MODEL_PATH=Qwen/Qwen3-8B
 WANDB_PROJECT=${WANDB_PROJECT:-apa}
 WANDB_RUN_NAME=${WANDB_RUN_NAME:-gsm8k-qwen3-8b}
+ACTOR_STRATEGY=${ACTOR_STRATEGY:-fsdp}
+REF_STRATEGY=${REF_STRATEGY:-$ACTOR_STRATEGY}
+ACTOR_MODEL_DTYPE=${ACTOR_MODEL_DTYPE:-fp32}
+REF_MODEL_DTYPE=${REF_MODEL_DTYPE:-$ACTOR_MODEL_DTYPE}
 
 uv run --isolated src/train.py \
     algorithm.adv_estimator=grpo \
@@ -21,7 +27,7 @@ uv run --isolated src/train.py \
     data.max_response_length=4024 \
     actor_rollout_ref.model.path=$MODEL_PATH \
     actor_rollout_ref.actor.optim.lr=5e-6 \
-    actor_rollout_ref.actor.strategy=fsdp2 \
+    actor_rollout_ref.actor.strategy=$ACTOR_STRATEGY \
     actor_rollout_ref.actor.loss_agg_mode="seq-mean-token-sum-norm" \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=1 \
@@ -36,6 +42,7 @@ uv run --isolated src/train.py \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=1 \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.fsdp_config.model_dtype=$ACTOR_MODEL_DTYPE \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
@@ -49,7 +56,8 @@ uv run --isolated src/train.py \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.7 \
     actor_rollout_ref.rollout.val_kwargs.top_p=0.95 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
-    actor_rollout_ref.ref.strategy=fsdp2 \
+    actor_rollout_ref.ref.fsdp_config.model_dtype=$REF_MODEL_DTYPE \
+    actor_rollout_ref.ref.strategy=$REF_STRATEGY \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.actor.entropy_coeff=0 \
@@ -67,4 +75,5 @@ uv run --isolated src/train.py \
     trainer.default_hdfs_dir=null \
     rllm.agent.max_steps=1 \
     rllm.stepwise_advantage.enable=False \
-    trainer.total_epochs=10
+    trainer.total_epochs=10 \
+    "$@"
