@@ -14,6 +14,21 @@ from src.adversarial_reward import adversarial_reward_fn
 from src.agent import AdversarialAgent
 
 
+def _patch_transformers_v5_compat() -> None:
+    import transformers
+
+    if hasattr(transformers, "AutoModelForVision2Seq"):
+        return
+
+    replacement = getattr(transformers, "AutoModelForImageTextToText", None)
+    if replacement is None:
+        raise ImportError(
+            "Transformers v5 compatibility patch could not find AutoModelForImageTextToText."
+        )
+
+    transformers.AutoModelForVision2Seq = replacement
+
+
 def _use_messages_as_verl_prompt() -> None:
     """Keep VERL parquet prompts aligned with the real task messages.
 
@@ -99,6 +114,7 @@ def _maybe_disable_verl_fsdp_sync_module_states() -> None:
     version_base=None,
 )
 def main(config):
+    _patch_transformers_v5_compat()
     _use_messages_as_verl_prompt()
     _maybe_disable_verl_fsdp_sync_module_states()
 
