@@ -29,6 +29,14 @@ def _patch_transformers_v5_compat() -> None:
     transformers.AutoModelForVision2Seq = replacement
 
 
+def _patch_ray_worker_setup_hook() -> None:
+    import rllm.trainer.verl.ray_runtime_env as ray_runtime_env
+
+    ray_runtime_env.PPO_RAY_RUNTIME_ENV["worker_process_setup_hook"] = (
+        "ray_worker_setup.setup"
+    )
+
+
 def _use_messages_as_verl_prompt() -> None:
     """Keep VERL parquet prompts aligned with the real task messages.
 
@@ -115,6 +123,7 @@ def _maybe_disable_verl_fsdp_sync_module_states() -> None:
 )
 def main(config):
     _patch_transformers_v5_compat()
+    _patch_ray_worker_setup_hook()
     _use_messages_as_verl_prompt()
     _maybe_disable_verl_fsdp_sync_module_states()
 
