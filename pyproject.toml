@@ -38,6 +38,7 @@ include = ["src"]
 override-dependencies = [
     "flash-attn",
     "transformers==5.2.0",
+    "verl @ git+https://github.com/verl-project/verl.git",
 ]
 extra-build-variables = { flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" } }
 
