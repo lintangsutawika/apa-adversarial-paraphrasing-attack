@@ -1,6 +1,22 @@
 import os
 
 
+def _patch_transformers_v5_compat() -> None:
+    try:
+        import transformers
+    except Exception:
+        return
+
+    if hasattr(transformers, "AutoModelForVision2Seq"):
+        return
+
+    replacement = getattr(transformers, "AutoModelForImageTextToText", None)
+    if replacement is None:
+        return
+
+    transformers.AutoModelForVision2Seq = replacement
+
+
 def _patch_verl_fsdp_sync_module_states() -> None:
     if os.environ.get("APA_DISABLE_FSDP_SYNC_MODULE_STATES") != "1":
         return
@@ -126,5 +142,6 @@ def _patch_verl_fsdp_wrap_policy() -> None:
     fsdp_workers._apa_wrap_patch_applied = True
 
 
+_patch_transformers_v5_compat()
 _patch_verl_fsdp_sync_module_states()
 _patch_verl_fsdp_wrap_policy()
