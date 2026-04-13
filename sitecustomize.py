@@ -48,8 +48,21 @@ def _patch_vllm_qwen35_text_processing() -> None:
             return _convert_hf_config(config, qwen35_module.Qwen3_5MoeTextConfig)
         return _convert_hf_config(config, qwen35_module.Qwen3_5MoeConfig)
 
+    def _text_or_vl_data_parser(self):
+        hf_config = self.get_hf_config()
+        if not hasattr(hf_config, "vision_config"):
+            from vllm.model_executor.models.qwen2_vl import Qwen2VLMultiModalDataParser
+
+            return Qwen2VLMultiModalDataParser(
+                1,
+                video_needs_metadata=False,
+                expected_hidden_size=self._get_expected_hidden_size(),
+            )
+        return qwen35_module.Qwen3VLProcessingInfo.get_data_parser(self)
+
     qwen35_module.Qwen3_5ProcessingInfo.get_hf_config = _text_or_vl_config
     qwen35_module.Qwen3_5MoeProcessingInfo.get_hf_config = _text_or_vl_moe_config
+    qwen35_module.Qwen3_5ProcessingInfo.get_data_parser = _text_or_vl_data_parser
     qwen35_module._apa_qwen35_text_patch_applied = True
 
 
