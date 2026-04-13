@@ -37,7 +37,7 @@ include = ["src"]
 [tool.uv]
 override-dependencies = [
     "flash-attn",
-    "transformers==4.57.0",
+    "transformers==5.2.0",
 ]
 extra-build-variables = { flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" } }
 
