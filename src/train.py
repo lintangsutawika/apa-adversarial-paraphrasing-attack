@@ -32,6 +32,9 @@ def _patch_transformers_v5_compat() -> None:
 def _patch_ray_worker_setup_hook() -> None:
     import rllm.trainer.verl.ray_runtime_env as ray_runtime_env
 
+    env_vars = ray_runtime_env.PPO_RAY_RUNTIME_ENV.setdefault("env_vars", {})
+    repo_root = os.path.dirname(os.path.dirname(__file__))
+    env_vars["PYTHONPATH"] = f"{repo_root}/src:{repo_root}"
     ray_runtime_env.PPO_RAY_RUNTIME_ENV["worker_process_setup_hook"] = (
         "ray_worker_setup.setup"
     )
