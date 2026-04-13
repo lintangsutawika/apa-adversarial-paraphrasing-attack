@@ -1,5 +1,6 @@
 import hydra
 import os
+from pathlib import Path
 
 import copy
 from functools import partial
@@ -27,6 +28,38 @@ def _patch_transformers_v5_compat() -> None:
         )
 
     transformers.AutoModelForVision2Seq = replacement
+
+
+def _patch_uv_cached_verl_model_import() -> None:
+    uv_cache_dir = os.environ.get("UV_CACHE_DIR")
+    if not uv_cache_dir:
+        return
+
+    patch_snippet = (
+        "import transformers as _apa_transformers\n"
+        'if not hasattr(_apa_transformers, "AutoModelForVision2Seq") and '
+        'hasattr(_apa_transformers, "AutoModelForImageTextToText"):\n'
+        "    _apa_transformers.AutoModelForVision2Seq = "
+        "_apa_transformers.AutoModelForImageTextToText\n\n"
+    )
+
+    cache_root = Path(uv_cache_dir)
+    for candidate in cache_root.rglob("verl/utils/model.py"):
+        try:
+            text = candidate.read_text()
+        except OSError:
+            continue
+
+        if "AutoModelForVision2Seq" not in text:
+            continue
+        if "_apa_transformers.AutoModelForVision2Seq" in text:
+            continue
+
+        marker = "from transformers import ("
+        if marker not in text:
+            continue
+
+        candidate.write_text(text.replace(marker, patch_snippet + marker, 1))
 
 
 def _patch_ray_worker_setup_hook() -> None:
@@ -126,6 +159,7 @@ def _maybe_disable_verl_fsdp_sync_module_states() -> None:
 )
 def main(config):
     _patch_transformers_v5_compat()
+    _patch_uv_cached_verl_model_import()
     _patch_ray_worker_setup_hook()
     _use_messages_as_verl_prompt()
     _maybe_disable_verl_fsdp_sync_module_states()
