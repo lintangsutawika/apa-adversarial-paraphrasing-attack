@@ -17,6 +17,35 @@ def _patch_transformers_v5_compat() -> None:
     transformers.AutoModelForVision2Seq = replacement
 
 
+def _patch_vllm_qwen35_text_processing() -> None:
+    if os.environ.get("APA_QWEN35_TEXT_ONLY") != "1":
+        return
+
+    try:
+        import vllm.model_executor.models.qwen3_5 as qwen35_module
+    except Exception:
+        return
+
+    if getattr(qwen35_module, "_apa_qwen35_text_patch_applied", False):
+        return
+
+    def _text_or_vl_config(self):
+        try:
+            return self.ctx.get_hf_config(qwen35_module.Qwen3_5TextConfig)
+        except TypeError:
+            return self.ctx.get_hf_config(qwen35_module.Qwen3_5Config)
+
+    def _text_or_vl_moe_config(self):
+        try:
+            return self.ctx.get_hf_config(qwen35_module.Qwen3_5MoeTextConfig)
+        except TypeError:
+            return self.ctx.get_hf_config(qwen35_module.Qwen3_5MoeConfig)
+
+    qwen35_module.Qwen3_5ProcessingInfo.get_hf_config = _text_or_vl_config
+    qwen35_module.Qwen3_5MoeProcessingInfo.get_hf_config = _text_or_vl_moe_config
+    qwen35_module._apa_qwen35_text_patch_applied = True
+
+
 def _patch_verl_fsdp_sync_module_states() -> None:
     if os.environ.get("APA_DISABLE_FSDP_SYNC_MODULE_STATES") != "1":
         return
@@ -143,5 +172,6 @@ def _patch_verl_fsdp_wrap_policy() -> None:
 
 
 _patch_transformers_v5_compat()
+_patch_vllm_qwen35_text_processing()
 _patch_verl_fsdp_sync_module_states()
 _patch_verl_fsdp_wrap_policy()
