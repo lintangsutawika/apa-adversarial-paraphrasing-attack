@@ -21,10 +21,13 @@ def _patch_transformers_v5_compat() -> None:
     if hasattr(transformers, "AutoModelForVision2Seq"):
         return
 
-    replacement = getattr(transformers, "AutoModelForImageTextToText", None)
+    if os.environ.get("APA_QWEN35_TEXT_ONLY") == "1":
+        replacement = getattr(transformers, "AutoModelForCausalLM", None)
+    else:
+        replacement = getattr(transformers, "AutoModelForImageTextToText", None)
     if replacement is None:
         raise ImportError(
-            "Transformers v5 compatibility patch could not find AutoModelForImageTextToText."
+            "Transformers v5 compatibility patch could not find a replacement for AutoModelForVision2Seq."
         )
 
     transformers.AutoModelForVision2Seq = replacement
@@ -36,10 +39,15 @@ def _patch_uv_cached_verl_model_import() -> None:
         return
 
     patch_snippet = (
+        "import os as _apa_os\n"
         "import transformers as _apa_transformers\n"
         'if not hasattr(_apa_transformers, "AutoModelForVision2Seq") and '
-        'hasattr(_apa_transformers, "AutoModelForImageTextToText"):\n'
-        "    _apa_transformers.AutoModelForVision2Seq = "
+        '(_apa_os.environ.get("APA_QWEN35_TEXT_ONLY") == "1" or '
+        'hasattr(_apa_transformers, "AutoModelForImageTextToText")):\n'
+        '    if _apa_os.environ.get("APA_QWEN35_TEXT_ONLY") == "1":\n'
+        "        _apa_transformers.AutoModelForVision2Seq = _apa_transformers.AutoModelForCausalLM\n"
+        "    else:\n"
+        "        _apa_transformers.AutoModelForVision2Seq = "
         "_apa_transformers.AutoModelForImageTextToText\n\n"
     )
 
@@ -60,6 +68,32 @@ def _patch_uv_cached_verl_model_import() -> None:
             continue
 
         candidate.write_text(text.replace(marker, patch_snippet + marker, 1))
+
+
+def _patch_uv_cached_verl_rollout_registry() -> None:
+    uv_cache_dir = os.environ.get("UV_CACHE_DIR")
+    if not uv_cache_dir:
+        return
+
+    cache_root = Path(uv_cache_dir)
+    for candidate in cache_root.rglob("verl/workers/rollout/base.py"):
+        try:
+            text = candidate.read_text()
+        except OSError:
+            continue
+
+        if '("hf", "sync")' in text:
+            continue
+
+        marker = "_ROLLOUT_REGISTRY = {"
+        if marker not in text:
+            continue
+
+        replacement = (
+            marker
+            + '\n    ("hf", "sync"): "verl.workers.rollout.hf_rollout.HFRollout",'
+        )
+        candidate.write_text(text.replace(marker, replacement, 1))
 
 
 def _patch_ray_worker_setup_hook() -> None:
@@ -160,6 +194,7 @@ def _maybe_disable_verl_fsdp_sync_module_states() -> None:
 def main(config):
     _patch_transformers_v5_compat()
     _patch_uv_cached_verl_model_import()
+    _patch_uv_cached_verl_rollout_registry()
     _patch_ray_worker_setup_hook()
     _use_messages_as_verl_prompt()
     _maybe_disable_verl_fsdp_sync_module_states()
