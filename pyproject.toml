@@ -38,6 +38,7 @@ include = ["src"]
 environments = ["sys_platform == 'linux' and python_full_version >= '3.13' and python_full_version < '3.14'"]
 override-dependencies = [
     "flash-attn",
+    "numpy==2.0.0",
     "transformers==5.2.0",
     "vllm==0.19.0",
 ]
