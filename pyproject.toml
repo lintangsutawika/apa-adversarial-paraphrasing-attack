@@ -12,7 +12,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 license = { "text" = "MIT" }
 dependencies = [
     "rllm[verl] @ git+https://github.com/rllm-org/rllm.git",
