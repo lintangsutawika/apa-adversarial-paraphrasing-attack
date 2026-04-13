@@ -29,17 +29,24 @@ def _patch_vllm_qwen35_text_processing() -> None:
     if getattr(qwen35_module, "_apa_qwen35_text_patch_applied", False):
         return
 
+    def _convert_hf_config(config, target_cls):
+        if isinstance(config, target_cls):
+            return config
+        if hasattr(config, "to_dict"):
+            return target_cls(**config.to_dict())
+        return target_cls(**dict(config))
+
     def _text_or_vl_config(self):
-        try:
-            return self.ctx.get_hf_config(qwen35_module.Qwen3_5TextConfig)
-        except TypeError:
-            return self.ctx.get_hf_config(qwen35_module.Qwen3_5Config)
+        config = self.ctx.model_config.hf_config
+        if getattr(config, "model_type", None) == "qwen3_5_text":
+            return _convert_hf_config(config, qwen35_module.Qwen3_5TextConfig)
+        return _convert_hf_config(config, qwen35_module.Qwen3_5Config)
 
     def _text_or_vl_moe_config(self):
-        try:
-            return self.ctx.get_hf_config(qwen35_module.Qwen3_5MoeTextConfig)
-        except TypeError:
-            return self.ctx.get_hf_config(qwen35_module.Qwen3_5MoeConfig)
+        config = self.ctx.model_config.hf_config
+        if getattr(config, "model_type", None) == "qwen3_5_moe_text":
+            return _convert_hf_config(config, qwen35_module.Qwen3_5MoeTextConfig)
+        return _convert_hf_config(config, qwen35_module.Qwen3_5MoeConfig)
 
     qwen35_module.Qwen3_5ProcessingInfo.get_hf_config = _text_or_vl_config
     qwen35_module.Qwen3_5MoeProcessingInfo.get_hf_config = _text_or_vl_moe_config
