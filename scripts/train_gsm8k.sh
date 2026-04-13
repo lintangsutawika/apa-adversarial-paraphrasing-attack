@@ -2,7 +2,7 @@
 
 set -x
 
-export PYTHONPATH="$(pwd)${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$(pwd)/src:$(pwd)${PYTHONPATH:+:$PYTHONPATH}"
 
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:False}"
 export VLLM_USE_V1=1
