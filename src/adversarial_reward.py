@@ -12,6 +12,17 @@ kwargs = {
 }
 
 
+def _extract_paraphrased_question(action: str) -> str | None:
+    cleaned = action.replace("<|im_end|>", "").strip()
+    cleaned = re.sub(r"^<think>\s*</think>\s*", "", cleaned, flags=re.DOTALL).strip()
+
+    match = re.search(r"<problem>(.*?)</problem>", cleaned, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    return cleaned or None
+
+
 def _completion_content(model: str, messages: list[dict]) -> str | None:
     # Fail loudly here so provider/config errors do not masquerade as valid zero-reward samples.
     return (
@@ -38,8 +49,7 @@ def adversarial_reward_fn(
         float: The calculated reward value based on math evaluation
     """
 
-    match = re.search(r"<problem>(.*?)</problem>", action, re.DOTALL)
-    paraphrased_question = match.group(1).strip() if match else None
+    paraphrased_question = _extract_paraphrased_question(action)
 
     if paraphrased_question is None:
         return RewardOutput(reward=0.0, metadata={"error": "Invalid action format"})
