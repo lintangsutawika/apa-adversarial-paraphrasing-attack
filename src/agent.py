@@ -5,17 +5,27 @@ from rllm.agents.agent import Action, BaseAgent, Step, Trajectory
 
 
 class AdversarialAgent(BaseAgent):
-
     def __init__(self):
 
-        self.instruction = "Let's think step by step, and put your final answer within \\boxed{}."
+        self.instruction = (
+            "Let's think step by step, and put your final answer within \\boxed{}."
+        )
         self._trajectory = Trajectory()
         self.messages = []
 
-    def update_from_env(self, observation: Any, reward: float, done: bool, info: dict, **kwargs):
-
+    def update_from_env(
+        self, observation: Any, reward: float, done: bool, info: dict, **kwargs
+    ):
+        # single_turn_workflow sends {} on the terminal env step; keep prior chat state then.
+        if observation is None:
+            return
+        assert isinstance(observation, dict), "Observation must be a dict."
+        if not observation:
+            return
         assert "messages" in observation, "Observation must contain 'messages' key."
-        assert isinstance(observation["messages"], list), "'messages' in observation must be a list."
+        assert isinstance(observation["messages"], list), (
+            "'messages' in observation must be a list."
+        )
         self.messages = observation["messages"]
 
     def update_from_model(self, response: str, **kwargs) -> Action:
@@ -47,5 +57,7 @@ class AdversarialAgent(BaseAgent):
 
     def get_current_state(self) -> Step:
         """Returns the current step/state of the agent."""
-        assert self._trajectory.steps, "Trajectory should not be empty when get_current_state is called."
+        assert self._trajectory.steps, (
+            "Trajectory should not be empty when get_current_state is called."
+        )
         return self._trajectory.steps[-1]

@@ -13,14 +13,12 @@ kwargs = {
 
 
 def _completion_content(model: str, messages: list[dict]) -> str | None:
-    try:
-        return (
-            litellm.completion(model=model, messages=messages, **kwargs)
-            .choices[0]
-            .message.content.strip()
-        )
-    except Exception:
-        return None
+    # Fail loudly here so provider/config errors do not masquerade as valid zero-reward samples.
+    return (
+        litellm.completion(model=model, messages=messages, **kwargs)
+        .choices[0]
+        .message.content.strip()
+    )
 
 
 def adversarial_reward_fn(
@@ -51,17 +49,27 @@ def adversarial_reward_fn(
         "__PARAPHRASED_QUESTION__", paraphrased_question
     )
 
-    victim_model = task_info.get(
-        "victim_model", "litellm_proxy/azure_ai/Llama-3.3-70B-Instruct"
+    # Current branch/runtime expects provider selection through env or task_info, not hardcoded defaults.
+    victim_model = task_info.get("victim_model") or os.environ.get("LLM_VICTIM_MODEL")
+    assert victim_model, (
+        "Missing victim model. Set task_info['victim_model'] or LLM_VICTIM_MODEL."
     )
+
     reference_models = task_info.get(
-        "reference_models",
-        task_info.get("reference_model", "litellm_proxy/azure_ai/gpt-oss-120b"),
+        "reference_models", task_info.get("reference_model")
     )
+    if reference_models is None:
+        reference_models = os.environ.get("LLM_REFERENCE_MODELS") or os.environ.get(
+            "LLM_REFERENCE_MODEL"
+        )
     if isinstance(reference_models, str):
-        reference_models = [reference_models]
-    if not reference_models:
-        reference_models = ["litellm_proxy/azure_ai/gpt-oss-120b"]
+        reference_models = [
+            model.strip() for model in reference_models.split(",") if model.strip()
+        ]
+    assert reference_models, (
+        "Missing reference model(s). Set task_info['reference_models'] or "
+        "LLM_REFERENCE_MODEL(S)."
+    )
 
     victim_response = _completion_content(victim_model, messages)
     reference_responses = [

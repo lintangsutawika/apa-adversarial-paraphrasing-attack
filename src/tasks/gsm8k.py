@@ -4,6 +4,7 @@ from datasets import load_dataset
 
 from rllm.data.dataset import DatasetRegistry
 
+
 # Adapted from verl/examples/data_preprocess/gsm8k.py
 def extract_solution(solution_str):
     solution = re.search("#### (\\-?[0-9\\.\\,]+)", solution_str)
@@ -12,13 +13,15 @@ def extract_solution(solution_str):
     final_solution = final_solution.split("#### ")[1].replace(",", "")
     return final_solution
 
+
 ATTACK_SYS_PROMPT = (
-    "Your goal is to rewrite the provided problem in a way "
-    "that makes the original problem more difficult, "
-    "without changing the correct answer of the problem. "
-    "Use <problem> and </problem> tags to enclose the modified problem. "
-    "Do not attempt to solve the problem directly."
+    "Rewrite the provided problem into a meaningfully harder version without changing "
+    "its correct final answer. Increase difficulty by reordering information, adding "
+    "distracting but answer-preserving details, or forcing more intermediate reasoning. "
+    "Output exactly one rewritten problem enclosed in <problem> and </problem> tags, "
+    "with no extra text before or after the tags. Do not solve the problem."
 )
+
 
 def prepare_gsm8k_data():
     gsm8k_dataset = load_dataset("openai/gsm8k", "main")
@@ -29,18 +32,26 @@ def prepare_gsm8k_data():
         return {
             "messages": [
                 {"role": "system", "content": ATTACK_SYS_PROMPT},
-                {"role": "user", "content": example['question']}
-                ],
+                {"role": "user", "content": example["question"]},
+            ],
             "ground_truth": extract_solution(example["answer"]),
             "data_source": "gsm8k",
             "target_prompts": [
-                {"role": "system", "content": "Reason step by step and put your final answer within \\boxed{}."},
+                {
+                    "role": "system",
+                    "content": "Reason step by step and put your final answer within \\boxed{}.",
+                },
                 {"role": "user", "content": "__PARAPHRASED_QUESTION__"},
             ],
         }
 
-    train_dataset = train_dataset.map(preprocess_fn, with_indices=True)
-    test_dataset = test_dataset.map(preprocess_fn, with_indices=True)
+    # Force remap so prompt changes in this file are reflected immediately during debugging.
+    train_dataset = train_dataset.map(
+        preprocess_fn, with_indices=True, load_from_cache_file=False
+    )
+    test_dataset = test_dataset.map(
+        preprocess_fn, with_indices=True, load_from_cache_file=False
+    )
 
     train_dataset = DatasetRegistry.register_dataset("gsm8k", train_dataset, "train")
     test_dataset = DatasetRegistry.register_dataset("gsm8k", test_dataset, "test")
