@@ -19,6 +19,7 @@ ATTACK_SYS_PROMPT = (
     "Rewrite the provided problem into a meaningfully harder version without changing "
     "its correct final answer. Increase difficulty by reordering information, adding "
     "distracting but answer-preserving details, or forcing more intermediate reasoning. "
+    "Your response is invalid unless it starts with <problem> and ends with </problem>. "
     "Output exactly one rewritten problem enclosed in <problem> and </problem> tags, "
     "with no extra text before or after the tags. Do not solve the problem."
 )
