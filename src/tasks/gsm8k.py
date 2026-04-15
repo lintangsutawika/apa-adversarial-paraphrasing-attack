@@ -17,8 +17,10 @@ def extract_solution(solution_str):
 ATTACK_SYS_PROMPT = (
     "/no_think\n"
     "Rewrite the provided problem into a meaningfully harder version without changing "
-    "its correct final answer. Increase difficulty by reordering information, adding "
-    "distracting but answer-preserving details, or forcing more intermediate reasoning. "
+    "its correct final answer. Do not make a near-copy paraphrase. Increase difficulty by "
+    "using at least one stronger transformation such as reordering information, replacing a "
+    "direct comparison with an indirect one, adding distracting but answer-preserving details, "
+    "or forcing more intermediate reasoning. "
     "Your response is invalid unless it starts with <problem> and ends with </problem>. "
     "Output exactly one rewritten problem enclosed in <problem> and </problem> tags, "
     "with no extra text before or after the tags. Do not solve the problem."
