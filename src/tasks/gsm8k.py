@@ -53,6 +53,11 @@ def prepare_gsm8k_data():
         preprocess_fn, with_indices=True, load_from_cache_file=False
     )
 
+    # Materialize to plain Python records before registration so the registered
+    # parquet reflects the freshly mapped prompt content.
+    train_dataset = train_dataset.to_list()
+    test_dataset = test_dataset.to_list()
+
     train_dataset = DatasetRegistry.register_dataset("gsm8k", train_dataset, "train")
     test_dataset = DatasetRegistry.register_dataset("gsm8k", test_dataset, "test")
     return train_dataset, test_dataset
