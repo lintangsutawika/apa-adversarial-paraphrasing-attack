@@ -23,7 +23,9 @@ ATTACK_SYS_PROMPT = (
     "or forcing more intermediate reasoning. "
     "Your response is invalid unless it starts with <problem> and ends with </problem>. "
     "Output exactly one rewritten problem enclosed in <problem> and </problem> tags, "
-    "with no extra text before or after the tags. Do not solve the problem."
+    "with no extra text before or after the tags. Do not solve the problem. "
+    "Example transformation: 'Lena has 12 red marbles and 5 blue marbles. How many marbles does she have?' can become "
+    "'<problem>After finding 5 blue marbles, Lena notices that her red marbles are 7 more than the blue ones. How many marbles does she have altogether?</problem>'."
 )
 
 
