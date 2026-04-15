@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from threading import BoundedSemaphore
@@ -14,17 +15,14 @@ kwargs = {
 
 _LLM_CONCURRENCY = int(os.environ.get("LLM_MAX_CONCURRENCY", "1"))
 _LLM_CALL_SEMAPHORE = BoundedSemaphore(value=_LLM_CONCURRENCY)
+_REWARD_TRACE_JSONL = os.environ.get("REWARD_TRACE_JSONL")
 
 
-def _extract_paraphrased_question(action: str) -> str | None:
-    cleaned = action.replace("<|im_end|>", "").strip()
-    cleaned = re.sub(r"^<think>\s*</think>\s*", "", cleaned, flags=re.DOTALL).strip()
-
-    match = re.search(r"<problem>(.*?)</problem>", cleaned, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-
-    return cleaned or None
+def _append_reward_trace(record: dict) -> None:
+    if not _REWARD_TRACE_JSONL:
+        return
+    with open(_REWARD_TRACE_JSONL, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=True) + "\n")
 
 
 def _completion_content(model: str, messages: list[dict]) -> str | None:
@@ -54,7 +52,10 @@ def adversarial_reward_fn(
         float: The calculated reward value based on math evaluation
     """
 
-    paraphrased_question = _extract_paraphrased_question(action)
+    # Keep reward parsing strict: malformed attacker outputs should stay invalid
+    # instead of being normalized into seemingly valid paraphrases.
+    match = re.search(r"<problem>(.*?)</problem>", action, re.DOTALL)
+    paraphrased_question = match.group(1).strip() if match else None
 
     if paraphrased_question is None:
         return RewardOutput(reward=0.0, metadata={"error": "Invalid action format"})
@@ -110,6 +111,48 @@ def adversarial_reward_fn(
         reward = 1.0
     else:
         reward = 0.0
+
+    victim_correct = victim_reward.reward == 1
+    reference_correct = [
+        reference_reward.reward == 1 for reference_reward in reference_rewards
+    ]
+    if completion_failed:
+        reward_reason = "completion_failed"
+    elif not victim_correct and all(reference_correct):
+        reward_reason = "victim_wrong_reference_right"
+    elif victim_correct and all(reference_correct):
+        reward_reason = "both_correct"
+    elif not victim_correct and not all(reference_correct):
+        reward_reason = "victim_wrong_reference_not_all_right"
+    else:
+        reward_reason = "victim_right_reference_not_all_right"
+
+    _append_reward_trace(
+        {
+            "original_problem": task_info.get("problem"),
+            "paraphrased_question": paraphrased_question,
+            "action": action,
+            "victim_model": victim_model,
+            "reference_models": reference_models,
+            "messages": messages,
+            "adversarial_reward": reward,
+            "reward_reason": reward_reason,
+            "victim_correct": victim_correct,
+            "reference_correct": reference_correct,
+            "reward": reward,
+            "completion_failed": completion_failed,
+            "victim_response": victim_response,
+            "reference_responses": reference_responses,
+            "victim_reward": victim_reward.reward,
+            "victim_reward_metadata": victim_reward.metadata,
+            "reference_rewards": [
+                reference_reward.reward for reference_reward in reference_rewards
+            ],
+            "reference_reward_metadata": [
+                reference_reward.metadata for reference_reward in reference_rewards
+            ],
+        }
+    )
 
     return RewardOutput(
         reward=reward,

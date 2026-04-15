@@ -65,8 +65,15 @@ These settings were required to make the current code version run cleanly enough
 
 - On 8 GPUs with the older `fsdp2` path, `actor_rollout_ref.actor.ppo_mini_batch_size=1` normalizes to `0` and crashes. Use `ppo_mini_batch_size=8` with `ppo_micro_batch_size_per_gpu=1`.
 - The current smoke/debug target uses `data.max_prompt_length=2048` and `data.max_response_length=2048`.
-- For Qwen3 on this branch/runtime, the correct no-thinking knob is `+data.apply_chat_template_kwargs.enable_thinking=False`.
-  - The generic `rllm.disable_thinking` flag was not sufficient and could still leave visible `<think>` behavior.
+- For Qwen3 on this branch/runtime, the trainer-path no-thinking knob that actually worked in live PPO was `rllm.disable_thinking=True`.
+  - In the live 8B smoke run, this removed `<think>` from `Sample 0`, reduced response length from ~2048 to ~81 tokens, and changed all completions from `TRUNCATION` to `ENV_DONE`.
+  - Do not use `/no_think` in the dataset prompt.
+- `+data.apply_chat_template_kwargs.enable_thinking=False` still works in direct offline vLLM probes, but it was not sufficient in the live trainer integration path on this stack.
+- Qwen3 non-thinking mode should use the model-card settings: `temperature=0.7`, `top_p=0.8`, `top_k=20`.
+- Keep the GSM8K attack prompt minimal.
+  - Do not add examples or hand-written transformation recipes to force specific rewrite styles.
+- Launch from the repo root with `PYTHONPATH=/home/barryw/apa-bbf0c1c python -m src.train ...`.
+  - This avoids the import-path ambiguity we saw when invoking `python /home/barryw/apa-bbf0c1c/src/train.py` directly.
 - Reward/provider failures should fail loudly. Silent LiteLLM fallthroughs make broken provider calls look like legitimate zero-reward samples.
 
 ## Known Operational Issues
@@ -75,6 +82,29 @@ These settings were required to make the current code version run cleanly enough
   - Before reruns, kill stale workers, run `ray stop --force`, and verify GPUs are free.
 - Earlier bad distributed launches sometimes hung long enough to hit the default NCCL watchdog timeout around 600 seconds.
   - Treat this as stale/distributed-state fallout, not as evidence that the current reward/training path is wrong.
+- Cold-node startup can look hung before Hydra creates a new output directory or any GPU memory is allocated.
+  - On `babel-q9-24`, we observed a fresh `python -m src.train ...` spend multiple minutes inside Hydra/`verl`/`transformers` import-time file scanning on the NFS-backed env.
+  - Symptoms: parent `python -m src.train` process stays in `D` state with `wchan=filemap_update_page`, `read_bytes` keeps climbing, no new `outputs/...` run directory appears yet, and GPUs remain near `0 MiB`.
+  - A direct `import src.train` and `prepare_gsm8k_data()` check succeeded on the same node, so this slow phase was cold filesystem/import startup rather than a broken branch/env pairing.
+- On this `apa_env` stack, live 8B rollout samples still began with `<think>` even with `+data.apply_chat_template_kwargs.enable_thinking=False` present in the config dump.
+  - We tested a repo-side `sitecustomize.py` workaround to forward chat-template kwargs into the fully async client, but it did not change the live behavior and was removed immediately.
+  - Current conclusion: the active generation path for this trainer is still bypassing or overriding the expected Qwen3 hard no-thinking switch somewhere deeper in the stack.
+- The Ray runtime environment in this path forwards only a whitelist of env-var prefixes and did not include `PYTHONPATH` or our custom patch env var.
+  - That explains why the repo-side worker patch never reached the worker interpreters and was removed.
+- Direct offline vLLM probe on `babel-q9-24` with `vllm 0.11.0` and `Qwen/Qwen3-8B`:
+  - `LLM.chat(..., chat_template_kwargs={"enable_thinking": False})` worked as expected: no `<think>`, short output, valid `<problem>...</problem>` rewrite.
+  - Raw token-ID generation also worked when the prompt IDs were built with `tokenizer.apply_chat_template(..., enable_thinking=False)` and passed to `LLM.generate(...)`.
+  - `/no_think` without the hard switch was worse: it produced an empty `<think></think>` wrapper before the rewrite.
+  - So the Qwen/vLLM mechanism itself works on this node; the failure is specific to the trainer integration path, not to Qwen3 or offline vLLM in general.
+- Direct trainer-path probe with `rllm.disable_thinking=True` on `babel-q9-24`:
+  - `Sample 0` showed an empty `<think></think>` assistant scaffold in the masked prompt, but the actual model output after the separator started directly with `<problem>...</problem>` and contained no `<think>`.
+  - Response length dropped to ~81 tokens and all 8 trajectories finished with `ENV_DONE` instead of `TRUNCATION`.
+  - Rewards were still all `0.0`, so this fixes the thinking/truncation failure mode but not the zero-reward attack-quality problem.
+- We also tested a repo-side Ray worker hook that patched the two known loss points:
+  - `rllm.experimental.fully_async.client.RolloutClient.chat_completion()`
+  - `verl.workers.rollout.schemas.AsyncRolloutRequest._handle_apply_chat_template()`
+  - The hook definitely loaded: `runtime_env_agent.log` showed `worker_process_setup_hook=src.worker_patches.setup`, packaged repo `working_dir`, and `APA_APPLY_CHAT_TEMPLATE_KWARGS={"enable_thinking": false}` in worker env.
+  - Despite that, the first live trainer `Sample 0` still began with `<think>`, so this repo-side worker hook did not fix the actual generation path and was removed immediately.
 
 ## Data/Pipeline Notes
 

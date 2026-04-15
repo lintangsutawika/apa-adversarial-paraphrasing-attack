@@ -14,19 +14,26 @@ def extract_solution(solution_str):
     return final_solution
 
 
-ATTACK_SYS_PROMPT = (
-    "/no_think\n"
-    "Rewrite the provided problem into a meaningfully harder version without changing "
-    "its correct final answer. Do not make a near-copy paraphrase. Increase difficulty by "
-    "using at least one stronger transformation such as reordering information, replacing a "
-    "direct comparison with an indirect one, adding distracting but answer-preserving details, "
-    "or forcing more intermediate reasoning. "
-    "Your response is invalid unless it starts with <problem> and ends with </problem>. "
-    "Output exactly one rewritten problem enclosed in <problem> and </problem> tags, "
-    "with no extra text before or after the tags. Do not solve the problem. "
-    "Example transformation: 'Lena has 12 red marbles and 5 blue marbles. How many marbles does she have?' can become "
-    "'<problem>After finding 5 blue marbles, Lena notices that her red marbles are 7 more than the blue ones. How many marbles does she have altogether?</problem>'."
-)
+# Stronger wording for the current diagnostic run: preserve the mathematical
+# task exactly, but push the model toward subtler target-specific rewrites.
+ATTACK_SYS_PROMPT = """# Objective
+Create a new version of the original math problem that preserves the required mathematical reasoning, solution path, and final answer, while increasing the likelihood that the specific target model fails even though humans and reference models can still solve it correctly with the same single valid answer.
+
+# Instructions
+- Rewrite the original problem so it requires the same mathematical reasoning and leads to the same solution and answer.
+- Do not include instructions about response formatting in the rewritten problem, since models will receive separate system instructions.
+- Use insights from successful attack examples to identify reproducible mistake patterns when available.
+- Exploit theorized weaknesses of the target model subtly.
+- The rewritten problem does not need to be more challenging, more complex, or more vague.
+- Ensure the rewritten problem still has a single valid answer and remains correctly solvable by humans and reference models.
+
+# Output Requirements
+Your response MUST contain only the rewritten math problem, enclosed exactly as follows:
+
+```text
+<problem>...</problem>
+```
+"""
 
 
 def prepare_gsm8k_data():
