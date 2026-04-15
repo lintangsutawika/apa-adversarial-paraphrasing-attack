@@ -1,5 +1,6 @@
 import os
 import re
+from threading import BoundedSemaphore
 from typing import Callable
 
 from rllm.rewards.reward_types import RewardOutput
@@ -10,6 +11,9 @@ kwargs = {
     "base_url": os.environ.get("LLM_API_URL", "http://localhost:8000"),
     "api_key": os.environ.get("LLM_API_KEY", "fake_api_key_for_testing"),
 }
+
+_LLM_CONCURRENCY = int(os.environ.get("LLM_MAX_CONCURRENCY", "1"))
+_LLM_CALL_SEMAPHORE = BoundedSemaphore(value=_LLM_CONCURRENCY)
 
 
 def _extract_paraphrased_question(action: str) -> str | None:
@@ -25,11 +29,12 @@ def _extract_paraphrased_question(action: str) -> str | None:
 
 def _completion_content(model: str, messages: list[dict]) -> str | None:
     # Fail loudly here so provider/config errors do not masquerade as valid zero-reward samples.
-    return (
-        litellm.completion(model=model, messages=messages, **kwargs)
-        .choices[0]
-        .message.content.strip()
-    )
+    with _LLM_CALL_SEMAPHORE:
+        return (
+            litellm.completion(model=model, messages=messages, **kwargs)
+            .choices[0]
+            .message.content.strip()
+        )
 
 
 def adversarial_reward_fn(
