@@ -15,6 +15,7 @@ def extract_solution(solution_str):
 
 
 ATTACK_SYS_PROMPT = (
+    "/no_think\n"
     "Rewrite the provided problem into a meaningfully harder version without changing "
     "its correct final answer. Increase difficulty by reordering information, adding "
     "distracting but answer-preserving details, or forcing more intermediate reasoning. "
